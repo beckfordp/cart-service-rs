@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Copy to gluon environments/local/cart-service-rs.values.yaml: the Rust
 # cart-service, installed by bin/k8s-local-up under the same release name
-# when its <SVC>_IMPL=rust. The same env vars as cart-service.values.yaml (copy
-# them from there); the chart's JVM-only settings blanked.
+# when CART_SERVICE_IMPL=rust. The same env vars as cart-service.values.yaml;
+# the chart's JVM-only settings blanked.
 image:
   repository: cart-service-rs
   tag: latest
@@ -11,13 +11,8 @@ javaOpts: ""
 mallocArenaMax: ""
 
 env:
+  # Spans over OTLP/HTTP to Tempo (bin/obs; ADR 0021), as the Scala service.
   - name: OTEL_EXPORTER_OTLP_ENDPOINT
     value: http://tempo:4318
-  - name: POSTGRES_HOST
-    value: cart-postgres
-  - name: POSTGRES_DB
-    value: cart
-  - name: POSTGRES_USER
-    value: cart
-  - name: POSTGRES_PASSWORD
-    value: cart
+  - name: REDIS_URI
+    value: redis://cart-redis:6379
