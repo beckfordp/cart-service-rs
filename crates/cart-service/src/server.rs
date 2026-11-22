@@ -7,55 +7,42 @@
 use std::future::Future;
 use std::io;
 use std::net::{Ipv4Addr, SocketAddr};
-use std::time::Duration;
+use std::sync::Arc;
 
 use axum::Router;
-use axum::routing::get;
+use redis_cache::Cache;
 use service_basics::cors::{CorsPolicy, Unrouted};
 use service_basics::edge::edge;
 use service_basics::health::{self, Readiness};
 use service_basics::text_error::{self, TextError, method_not_allowed};
 use tokio::net::TcpListener;
 
-use crate::examples::get_example;
-use crate::store::Examples;
-
-/// How long readiness waits for Postgres to answer.
-const READY_PING: Duration = Duration::from_secs(2);
-
 /// What the handlers share.
 #[derive(Clone)]
-pub struct AppState<S> {
-    /// The `example` table.
-    pub store: S,
+pub struct AppState {
+    /// The Redis the carts live in.
+    pub redis: Arc<Cache>,
 }
 
-/// Ready when Postgres answers a ping within 2 s.
-impl<S: Examples> Readiness for AppState<S> {
+/// Ready when Redis answers a ping within the client's timeout.
+impl Readiness for AppState {
     async fn ready(&self) -> bool {
-        self.store.ping(READY_PING).await
+        self.redis.ping().await
     }
 }
 
-/// The service: its routes ([`routes`]) behind the Scala services' edge, CORS
-/// outermost (`AppRoutes`; set the exposed headers from the service's
-/// `Cors.scala`).
-pub fn app<S: Examples>(store: S) -> Router {
-    edge(routes(store), CorsPolicy::default())
+/// The service: its routes behind the Scala services' edge, CORS outermost.
+pub fn app(redis: Arc<Cache>) -> Router {
+    edge(routes(redis), CorsPolicy::default())
 }
 
-/// The routes: health, the example, the docs (`crate::docs`), tapir's 405 for a known path with another
-/// method and 404 for any other.
-pub fn routes<S: Examples>(store: S) -> Router {
+/// The routes: health, tapir's 405 for a known path with another method and
+/// 404 for any other.
+pub fn routes(redis: Arc<Cache>) -> Router {
     health::routes()
-        .route(
-            "/examples/{id}",
-            get(get_example::<S>).head(method_not_allowed),
-        )
         .method_not_allowed_fallback(method_not_allowed)
         .fallback(not_found)
-        .with_state(AppState { store })
-        .merge(crate::docs::router())
+        .with_state(AppState { redis })
 }
 
 /// 404 for any unknown path, marked [`Unrouted`] for CORS.
@@ -67,13 +54,13 @@ async fn not_found() -> (Unrouted, TextError) {
 ///
 /// # Errors
 /// When the port can't be bound or serving fails.
-pub async fn run<S: Examples>(
+pub async fn run(
     port: u16,
-    store: S,
+    redis: Arc<Cache>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> io::Result<()> {
     let listener = TcpListener::bind(SocketAddr::from((Ipv4Addr::UNSPECIFIED, port))).await?;
-    axum::serve(listener, app(store))
+    axum::serve(listener, app(redis))
         .with_graceful_shutdown(shutdown)
         .await
 }

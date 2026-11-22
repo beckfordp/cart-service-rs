@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-//! The `cart-service` binary: reads the config contract, migrates the
-//! database, then serves the HTTP API until SIGTERM or SIGINT.
+//! The `cart-service` binary: reads the config contract, then serves the
+//! HTTP API until SIGTERM or SIGINT. Redis is connected lazily: the first
+//! call (readiness) connects.
 
-use cart_service::cache::{self, CachedExamples};
-use cart_service::config::{self, Config};
-use cart_service::store::PgExamples;
-use cart_service::{db, server};
-use redis_cache::Cache;
-use service_basics::{environment, runtime, shutdown};
 use std::process::ExitCode;
 use std::sync::Arc;
+use std::time::Duration;
+
+use cart_service::config::{self, Config};
+use cart_service::server;
+use redis_cache::Cache;
+use service_basics::{environment, runtime, shutdown};
 use telemetry::logging::Logger;
 use telemetry::tracing::{SdkTracer, Tracing};
 
@@ -51,37 +52,26 @@ fn main() -> ExitCode {
 /// The service's name in its stderr lines and SIGTERM warning.
 const SERVICE: &str = "cart-service";
 
+/// How long a Redis call may take before it counts as down (fail fast: the
+/// readiness probe's own timeout is 1 s).
+const REDIS_TIMEOUT: Duration = Duration::from_millis(500);
+
 async fn serve(config: &Config, tracer: SdkTracer) -> ExitCode {
-    let pool = match db::connect(&config.postgres).await {
-        Ok(pool) => pool,
-        Err(error) => {
-            eprintln!(
-                "{SERVICE}: database {}:{}/{} unreachable: {error}",
-                config.postgres.host, config.postgres.port, config.postgres.database
-            );
-            return ExitCode::FAILURE;
-        }
-    };
-    if let Err(error) = db::migrate(&pool).await {
-        eprintln!("{SERVICE}: database migration failed: {error}");
-        return ExitCode::FAILURE;
-    }
-    let logger = Logger::stdout(&config.service_name);
-    logger.info(
-        &[("port", &config.port.to_string())],
-        "cart-service starting",
-    );
-    let cache = match Cache::new(&config.redis_uri, cache::TIMEOUT) {
-        Ok(cache) => Arc::new(cache),
+    let redis = match Cache::new(&config.redis_uri, REDIS_TIMEOUT) {
+        Ok(redis) => Arc::new(redis),
         Err(error) => {
             eprintln!("{SERVICE}: {error}");
             return ExitCode::FAILURE;
         }
     };
-    let store = CachedExamples::new(PgExamples::new(pool), cache);
-    // No spans of its own yet: the first traced route or client uses it.
+    let logger = Logger::stdout(&config.service_name);
+    logger.info(
+        &[("port", &config.port.to_string())],
+        "cart-service starting",
+    );
+    // No spans of its own yet: the first traced route uses it.
     drop(tracer);
-    match server::run(config.port, store, shutdown::signal(SERVICE)).await {
+    match server::run(config.port, redis, shutdown::signal(SERVICE)).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             logger.error(&[("error", &error.to_string())], "HTTP server failed");

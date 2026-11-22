@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 
-//! The config contract: the Scala service's environment variables and defaults.
+//! The config contract: defaults, every override, every problem at once.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::HashMap;
 
-use cart_service::config::{Config, PostgresConfig, TracingConfig, from_env};
+use cart_service::config::{Config, TracingConfig, from_env};
 
 fn env(pairs: &[(&str, &str)]) -> HashMap<String, String> {
     pairs
@@ -22,13 +22,6 @@ fn defaults() {
         Config {
             port: 8080,
             service_name: "cart-service".to_owned(),
-            postgres: PostgresConfig {
-                host: "localhost".to_owned(),
-                port: 5432,
-                database: "cart".to_owned(),
-                user: "cart".to_owned(),
-                password: "cart".to_owned(),
-            },
             redis_uri: "redis://localhost:6379".to_owned(),
             tracing: TracingConfig {
                 otlp_endpoint: None,
@@ -43,12 +36,6 @@ fn every_variable_overrides_its_default() {
     let config = from_env(&env(&[
         ("CART_SERVICE_PORT", "18080"),
         ("CART_SERVICE_NAME", "cart-service-rs"),
-        ("POSTGRES_HOST", "127.0.0.1"),
-        ("POSTGRES_PORT", "15432"),
-        ("POSTGRES_DB", "db"),
-        ("POSTGRES_USER", "u"),
-        ("POSTGRES_PASSWORD", "p"),
-        ("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:19092"),
         ("REDIS_URI", "redis://127.0.0.1:16379"),
         ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318"),
         ("OTEL_TRACES_SAMPLER_ARG", "0.25"),
@@ -56,7 +43,6 @@ fn every_variable_overrides_its_default() {
     .unwrap();
     assert_eq!(config.port, 18080);
     assert_eq!(config.service_name, "cart-service-rs");
-    assert_eq!(config.postgres.port, 15432);
     assert_eq!(config.redis_uri, "redis://127.0.0.1:16379");
     assert_eq!(config.tracing.sampling_ratio, 0.25);
 }
@@ -65,10 +51,10 @@ fn every_variable_overrides_its_default() {
 fn every_problem_is_reported() {
     let error = from_env(&env(&[
         ("CART_SERVICE_PORT", "http"),
-        ("POSTGRES_PORT", "x"),
+        ("OTEL_TRACES_SAMPLER_ARG", "lots"),
     ]))
     .unwrap_err();
     let text = error.to_string();
     assert!(text.contains("CART_SERVICE_PORT"), "{text}");
-    assert!(text.contains("POSTGRES_PORT"), "{text}");
+    assert!(text.contains("OTEL_TRACES_SAMPLER_ARG"), "{text}");
 }

@@ -2,14 +2,13 @@
 
 //! The config contract: the Scala service's environment variables and
 //! defaults (its `application.conf`). Pure: an environment map in, a
-//! [`Config`] or every problem out; the pieces every service reads the same
-//! way are gluon-rs `service-basics` and `telemetry`.
+//! [`Config`] or every problem out.
 
 use std::collections::HashMap;
 use std::hash::BuildHasher;
 
-pub use service_basics::config::{ConfigError, PostgresConfig};
-use service_basics::config::{port, postgres};
+pub use service_basics::config::ConfigError;
+use service_basics::config::port;
 pub use telemetry::config::TracingConfig;
 use telemetry::config::tracing_from_env;
 
@@ -23,9 +22,7 @@ pub struct Config {
     pub port: u16,
     /// `CART_SERVICE_NAME`: `service.name` on spans, the logger name.
     pub service_name: String,
-    /// `POSTGRES_*`.
-    pub postgres: PostgresConfig,
-    /// `REDIS_URI`: the read cache (never the source of truth).
+    /// `REDIS_URI`: where the carts live.
     pub redis_uri: String,
     /// `OTEL_*`.
     pub tracing: TracingConfig,
@@ -39,7 +36,6 @@ pub fn from_env<S: BuildHasher>(env: &HashMap<String, String, S>) -> Result<Conf
     let mut problems = Vec::new();
     let text = |name: &str, default: &str| env.get(name).map_or(default, String::as_str).to_owned();
     let http_port = port(env, PORT_VARIABLE, 8080, &mut problems);
-    let postgres = postgres(env, "cart", &mut problems);
     let tracing = tracing_from_env(env, &mut problems);
     if !problems.is_empty() {
         return Err(ConfigError { problems });
@@ -47,7 +43,6 @@ pub fn from_env<S: BuildHasher>(env: &HashMap<String, String, S>) -> Result<Conf
     Ok(Config {
         port: http_port,
         service_name: text("CART_SERVICE_NAME", "cart-service"),
-        postgres,
         redis_uri: text("REDIS_URI", "redis://localhost:6379"),
         tracing,
     })

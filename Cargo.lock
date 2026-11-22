@@ -181,18 +181,12 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "redis-cache",
- "schemars",
- "serde",
  "serde_json",
  "service-basics",
  "service-testing",
- "sqlx",
  "telemetry",
- "thiserror",
- "time",
  "tokio",
  "tower",
- "uuid",
 ]
 
 [[package]]
@@ -305,9 +299,6 @@ name = "deranged"
 version = "0.5.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e9de72ce2ad1f90dc62fa25f0f430ef85eb4b0d8fa0be4f30373bc40a21d28e"
-dependencies = [
- "serde_core",
-]
 
 [[package]]
 name = "digest"
@@ -1853,7 +1844,6 @@ dependencies = [
  "sha2",
  "smallvec",
  "thiserror",
- "time",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -1937,7 +1927,6 @@ dependencies = [
  "sqlx-core",
  "stringprep",
  "thiserror",
- "time",
  "tracing",
  "uuid",
  "whoami",
@@ -1976,7 +1965,6 @@ dependencies = [
  "sqlx-core",
  "stringprep",
  "thiserror",
- "time",
  "tracing",
  "uuid",
  "whoami",
@@ -2002,7 +1990,6 @@ dependencies = [
  "serde_urlencoded",
  "sqlx-core",
  "thiserror",
- "time",
  "tracing",
  "url",
  "uuid",
@@ -2415,7 +2402,6 @@ checksum = "4a0e2d11620c50695fe12bbbfde96b3477fe606e7284c22d505c12ce51214514"
 dependencies = [
  "getrandom 0.4.3",
  "js-sys",
- "serde_core",
  "wasm-bindgen",
 ]
 
