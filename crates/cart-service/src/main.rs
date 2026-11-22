@@ -9,7 +9,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use cart_service::config::{self, Config};
-use cart_service::server;
+use cart_service::server::{self, AppState};
+use cart_service::store::RedisCarts;
 use redis_cache::Cache;
 use service_basics::{environment, runtime, shutdown};
 use telemetry::logging::Logger;
@@ -69,9 +70,13 @@ async fn serve(config: &Config, tracer: SdkTracer) -> ExitCode {
         &[("port", &config.port.to_string())],
         "cart-service starting",
     );
-    // No spans of its own yet: the first traced route uses it.
-    drop(tracer);
-    match server::run(config.port, redis, shutdown::signal(SERVICE)).await {
+    // No spans of its own: kept alive for the provider's lifetime.
+    let _tracer = tracer;
+    let state = AppState {
+        store: RedisCarts::new(redis, config.ttl),
+        logger: logger.clone(),
+    };
+    match server::run(config.port, state, shutdown::signal(SERVICE)).await {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             logger.error(&[("error", &error.to_string())], "HTTP server failed");

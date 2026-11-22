@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: MIT
 
 //! The cart-service binary: the Rust port of gluon's Scala cart-service
-//! (ADR 0029). Generated from `tools/rust-service-template`, cut to the RED
-//! skeleton (all-Rust Stage A): health, and readiness following Redis — the
-//! store the carts live in. The carts routes and the docs arrive with the port.
+//! (ADR 0029). Generated from `tools/rust-service-template`, carts in Redis
+//! as the Scala service stores them, its five routes, health, readiness on
+//! Redis, and the docs.
 
 pub mod config;
+pub mod docs;
+pub mod domain;
+pub mod routes;
 pub mod server;
+pub mod store;
 
 /// The package version, as built.
 #[must_use]
